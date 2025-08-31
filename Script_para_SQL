@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 # ================================
 
 # API do Bubble
-url_bubble = "https://lead-sa.app.br/api/1.1/obj/XXXXXXXX"
+url_bubble = "https://meuapp.com.br/api/1.1/obj/XXXXXXXX"
 key = "XXXXXXX"
 
 BUBBLE_API_URL = {url_bubble}
