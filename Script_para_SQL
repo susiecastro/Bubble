@@ -1,0 +1,104 @@
+
+import requests
+import pandas as pd
+from sqlalchemy import create_engine, text
+
+# ================================
+# 1. CONFIGURAÇÕES
+# ================================
+
+# API do Bubble
+url_bubble = "https://lead-sa.app.br/api/1.1/obj/XXXXXXXX"
+key = "XXXXXXX"
+
+BUBBLE_API_URL = {url_bubble}
+PRIVATE_KEY = {key}
+HEADERS = {
+    "Authorization": f"Bearer {PRIVATE_KEY}",
+    "Content-Type": "application/json"
+}
+
+# Conexão com o Azure SQL
+usuario = "XXXXX"
+senha ="XXXX"
+servidor ="XXXX"
+banco="XXXXX"
+conn_url = (
+    f"mssql+pyodbc://{usuario}:{senha}@{servidor}:1433/{banco}"
+    "XXXXX"
+)
+
+# ================================
+# 2. FUNÇÃO PARA BUSCAR TODOS OS DADOS DA API
+# ================================
+
+def get_all_bubble_data(api_url, headers):
+    todos_dados = []
+    cursor = 0
+    pagina = 1
+
+    while True:
+        print(f"📥 Buscando página {pagina} (cursor={cursor})...")
+        response = requests.get(f"{api_url}?cursor={cursor}", headers=headers)
+
+        if response.status_code != 200:
+            print(f"❌ Erro na requisição (status {response.status_code})")
+            break
+
+        resposta_json = response.json()
+        resultados = resposta_json.get("response", {}).get("results", [])
+        todos_dados.extend(resultados)
+
+        if len(resultados) < 100:
+            print("✅ Última página alcançada.")
+            break
+
+        cursor += 100
+        pagina += 1
+
+    return todos_dados
+
+# ================================
+# 3. CONECTAR AO BANCO DE DADOS
+# ================================
+
+print("🔗 Conectando ao Azure SQL...")
+try:
+    engine = create_engine(conn_url)
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT GETDATE()"))
+        for row in result:
+            print("✅ Conectado com sucesso! Data/hora no SQL:", row[0])
+except Exception as e:
+    print("❌ Falha na conexão com Azure:")
+    print(e)
+    exit()
+
+# ================================
+# 4. BUSCAR DADOS DA API BUBBLE
+# ================================
+
+print("\n🔄 Buscando todos os dados da API Bubble com paginação...")
+dados = get_all_bubble_data(BUBBLE_API_URL, HEADERS)
+print(f"📦 Total de registros obtidos: {len(dados)}")
+
+# ================================
+# 5. TRANSFORMAR EM DATAFRAME E INSERIR NO SQL
+# ================================
+
+if dados:
+    df = pd.DataFrame(dados)
+    print("\n📊 Preview dos dados:")
+    print(df.head())
+
+    print("\n🔎 Tipos de dados:")
+    print(df.dtypes)
+
+    try:
+        df.to_sql("NomeTabela ", con=engine, if_exists="replace", index=False, schema='dbo')
+        print("✅ Todos os dados foram inseridos com sucesso no SQL!")
+    except Exception as e:
+        print("❌ Erro ao inserir os dados no SQL:")
+        print(e)
+else:
+    print("⚠️ Nenhum dado retornado da API.")
